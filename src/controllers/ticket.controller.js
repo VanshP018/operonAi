@@ -1,4 +1,4 @@
-import { classifyMessage } from "../services/classification.service.js";
+import { classifyMessageAI } from "../services/aiClassification.service.js";
 import { processDecision } from "../services/decision.service.js";
 import { refundPayment } from "../services/stripe.service.js";
 import { logEvent } from "../services/audit.service.js";
@@ -8,17 +8,23 @@ const processedRefunds = new Set();
 export const handleTicket = async (req, res) => {
   const { userId, stripeCustomerId, message } = req.body || {};
   const user = { userId, stripeCustomerId };
+  const allowedCategories = ["billing_duplicate", "billing_other", "other"];
   logEvent({
     step: "input",
     userId,
     message,
   });
 
-  const classification = classifyMessage(message);
+  let classification = await classifyMessageAI(message);
+
+  if (!allowedCategories.includes(classification?.category)) {
+    classification = { category: "other" };
+  }
   let decision;
   let executionResult = null;
   let execution = { refundId: null };
 
+  console.log("AI Classification:", classification);
   logEvent({
     step: "classification",
     result: classification,
