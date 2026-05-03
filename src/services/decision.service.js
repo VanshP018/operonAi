@@ -1,18 +1,27 @@
 import { findDuplicatePayments } from "../utils/duplicateDetector.js";
+import { getCustomerPayments } from "./stripe.service.js";
 
-export const processDecision = (userId, classification) => {
+export const processDecision = async (user, classification) => {
   const category = classification?.category;
 
   if (category !== "billing_duplicate") {
     return { action: "escalate" };
   }
 
-  const payments = [
-    { id: "pi_3TSto9B0QLsvw3Rp1iE6IwX0", amount: 20, date: "2026-05-01" },
-    { id: "pi_3TStnvB0QLsvw3Rp0fze2UYP", amount: 20, date: "2026-05-01" },
-  ];
+  const customerId = user?.stripeCustomerId;
+  const payments = await getCustomerPayments(customerId);
+  const cutoffTime = Date.now() - 48 * 60 * 60 * 1000;
 
-  const duplicates = findDuplicatePayments(payments);
+  const recentSucceededPayments = payments.filter((payment) => {
+    if (payment.status !== "succeeded") {
+      return false;
+    }
+
+    const paymentTime = new Date(`${payment.date}T00:00:00.000Z`).getTime();
+    return Number.isFinite(paymentTime) && paymentTime >= cutoffTime;
+  });
+
+  const duplicates = findDuplicatePayments(recentSucceededPayments);
 
   if (duplicates.length === 0) {
     return { action: "none", escalate: true };
@@ -24,5 +33,6 @@ export const processDecision = (userId, classification) => {
     action: "refund",
     paymentId: secondDuplicate.id,
     amount: secondDuplicate.amount,
+    paymentDate: secondDuplicate.date,
   };
 };

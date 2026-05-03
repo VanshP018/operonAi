@@ -1,27 +1,102 @@
 import { classifyMessage } from "../services/classification.service.js";
 import { processDecision } from "../services/decision.service.js";
 import { refundPayment } from "../services/stripe.service.js";
+import { logEvent } from "../services/audit.service.js";
+
+const processedRefunds = new Set();
 
 export const handleTicket = async (req, res) => {
-  const { userId, message } = req.body || {};
+  const { userId, stripeCustomerId, message } = req.body || {};
+  const user = { userId, stripeCustomerId };
+  logEvent({
+    step: "input",
+    userId,
+    message,
+  });
+
   const classification = classifyMessage(message);
-  const decision = processDecision(userId, classification);
+  let decision;
+  let executionResult = null;
   let execution = { refundId: null };
+
+  logEvent({
+    step: "classification",
+    result: classification,
+  });
+
+  try {
+    decision = await processDecision(user, classification);
+  } catch (error) {
+    console.error("/ticket decision error:", error);
+    logEvent({
+      step: "error",
+      error: error.message,
+    });
+    return res.status(500).json({
+      status: "error",
+      message: "Decision failed",
+    });
+  }
 
   console.log("/ticket message:", message);
   console.log("/ticket classification:", classification);
   console.log("/ticket decision:", decision);
 
+  logEvent({
+    step: "decision",
+    result: decision,
+  });
+
   if (decision?.action === "refund") {
     if (!decision.paymentId) {
       console.warn("/ticket refund skipped: missing paymentId");
-    } else {
+      decision = { action: "escalate" };
+    }
+
+    if (decision?.action === "refund" && decision.amount > 1000) {
+      console.warn("/ticket refund skipped: amount exceeds threshold");
+      decision = { action: "escalate" };
+    }
+
+    if (decision?.action === "refund") {
+      const paymentTime = new Date(`${decision.paymentDate}T00:00:00.000Z`).getTime();
+      const tooOld =
+        !Number.isFinite(paymentTime) ||
+        paymentTime < Date.now() - 48 * 60 * 60 * 1000;
+
+      if (tooOld) {
+        console.warn("/ticket refund skipped: payment is too old");
+        decision = { action: "escalate" };
+      }
+    }
+
+    if (decision?.action === "refund") {
+      const refundKey = `${userId}-${decision.paymentId}`;
+
+      if (processedRefunds.has(refundKey)) {
+        logEvent({
+          step: "execution",
+          action: decision.action,
+          paymentId: decision.paymentId,
+          refundId: executionResult?.id,
+        });
+        return res.json({
+          status: "ok",
+          message: "Refund already processed",
+        });
+      }
+
       try {
         const refund = await refundPayment(decision.paymentId);
+        processedRefunds.add(refundKey);
+        executionResult = refund;
         execution = { refundId: refund.id };
-        console.log("/ticket refundId:", refund.id);
       } catch (error) {
         console.error("/ticket refund error:", error);
+        logEvent({
+          step: "error",
+          error: error.message,
+        });
         return res.status(500).json({
           status: "error",
           message: "Refund failed",
@@ -29,6 +104,15 @@ export const handleTicket = async (req, res) => {
       }
     }
   }
+
+  console.log("/ticket execution:", execution);
+
+  logEvent({
+    step: "execution",
+    action: decision?.action,
+    paymentId: decision?.paymentId,
+    refundId: executionResult?.id,
+  });
 
   res.json({
     status: "ok",
