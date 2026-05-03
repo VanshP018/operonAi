@@ -1,4 +1,4 @@
-# FusionAi Backend
+# Operon Ai Backend
 
 Minimal Node.js + Express backend skeleton.
 
