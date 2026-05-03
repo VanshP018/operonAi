@@ -2,15 +2,17 @@ import { classifyMessageAI } from "../services/aiClassification.service.js";
 import { processDecision } from "../services/decision.service.js";
 import { refundPayment } from "../services/stripe.service.js";
 import { logEvent } from "../services/audit.service.js";
+import { retrieveFAQ } from "../services/retrieval.service.js";
 
 const processedRefunds = new Set();
 
 export const handleTicket = async (req, res) => {
-  const { userId, stripeCustomerId, message } = req.body || {};
+  const { userId, stripeCustomerId, message, mode } = req.body || {};
   const user = { userId, stripeCustomerId };
   const allowedCategories = ["billing_duplicate", "billing_other", "other"];
   logEvent({
     step: "input",
+    companyId: req.companyId,
     userId,
     message,
   });
@@ -30,12 +32,31 @@ export const handleTicket = async (req, res) => {
     result: classification,
   });
 
+  const retrievalResult = await retrieveFAQ(
+    message,
+    classification,
+    req.company?.faqs,
+  );
+  const suggestionAction = retrievalResult?.faq?.action || null;
+
+  logEvent({
+    step: "retrieval",
+    companyId: req.companyId,
+    message,
+    matchedFaqId: retrievalResult?.faq?.id,
+    score: retrievalResult?.score,
+    suggestionAction,
+  });
+
+  console.log("/ticket retrieval:", retrievalResult);
+
   try {
     decision = await processDecision(user, classification);
   } catch (error) {
     console.error("/ticket decision error:", error);
     logEvent({
       step: "error",
+      companyId: req.companyId,
       error: error.message,
     });
     return res.status(500).json({
@@ -50,7 +71,9 @@ export const handleTicket = async (req, res) => {
 
   logEvent({
     step: "decision",
+    companyId: req.companyId,
     result: decision,
+    suggestionAction,
   });
 
   if (decision?.action === "refund") {
@@ -77,36 +100,43 @@ export const handleTicket = async (req, res) => {
     }
 
     if (decision?.action === "refund") {
-      const refundKey = `${userId}-${decision.paymentId}`;
+      if (mode === "dry_run") {
+        console.log("/ticket dry run: refund skipped");
+        execution = { refundId: null, dryRun: true };
+      } else {
+        const refundKey = `${userId}-${decision.paymentId}`;
 
-      if (processedRefunds.has(refundKey)) {
-        logEvent({
-          step: "execution",
-          action: decision.action,
-          paymentId: decision.paymentId,
-          refundId: executionResult?.id,
-        });
-        return res.json({
-          status: "ok",
-          message: "Refund already processed",
-        });
-      }
+        if (processedRefunds.has(refundKey)) {
+          logEvent({
+            step: "execution",
+            companyId: req.companyId,
+            action: decision.action,
+            paymentId: decision.paymentId,
+            refundId: executionResult?.id,
+          });
+          return res.json({
+            status: "ok",
+            message: "Refund already processed",
+          });
+        }
 
-      try {
-        const refund = await refundPayment(decision.paymentId);
-        processedRefunds.add(refundKey);
-        executionResult = refund;
-        execution = { refundId: refund.id };
-      } catch (error) {
-        console.error("/ticket refund error:", error);
-        logEvent({
-          step: "error",
-          error: error.message,
-        });
-        return res.status(500).json({
-          status: "error",
-          message: "Refund failed",
-        });
+        try {
+          const refund = await refundPayment(decision.paymentId);
+          processedRefunds.add(refundKey);
+          executionResult = refund;
+          execution = { refundId: refund.id };
+        } catch (error) {
+          console.error("/ticket refund error:", error);
+          logEvent({
+            step: "error",
+            companyId: req.companyId,
+            error: error.message,
+          });
+          return res.status(500).json({
+            status: "error",
+            message: "Refund failed",
+          });
+        }
       }
     }
   }
@@ -115,9 +145,11 @@ export const handleTicket = async (req, res) => {
 
   logEvent({
     step: "execution",
+    companyId: req.companyId,
     action: decision?.action,
     paymentId: decision?.paymentId,
     refundId: executionResult?.id,
+    dryRun: mode === "dry_run",
   });
 
   res.json({
