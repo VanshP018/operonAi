@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 import ticketRouter from "./routes/ticket.route.js";
 import webhookRouter from "./routes/webhook.route.js";
 import { connectDatabase } from "./config/db.js";
@@ -33,16 +34,33 @@ app.use('/webhook', webhookRouter);
 
 // Serve static files from the frontend build in production
 const frontendBuildPath = path.join(__dirname, "../client/dist");
-app.use(express.static(frontendBuildPath));
 
-// SPA fallback - serve index.html for all non-API routes
-app.get("*", (req, res) => {
-  // Don't serve index.html for API routes
-  if (req.path.startsWith("/faq") || req.path.startsWith("/ticket") || req.path.startsWith("/webhook")) {
-    return res.status(404).json({ error: "Not found" });
-  }
-  res.sendFile(path.join(frontendBuildPath, "index.html"));
-});
+// Only serve static files if the build directory exists
+if (fs.existsSync(frontendBuildPath)) {
+  console.log(`Serving frontend from: ${frontendBuildPath}`);
+  app.use(express.static(frontendBuildPath));
+
+  // SPA fallback - serve index.html for all non-API routes
+  app.get("*", (req, res) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith("/faq") || req.path.startsWith("/ticket") || req.path.startsWith("/webhook")) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    res.sendFile(path.join(frontendBuildPath, "index.html"));
+  });
+} else {
+  console.warn(`Frontend build directory not found at ${frontendBuildPath}`);
+  console.warn("API will be available but frontend will not be served.");
+  
+  // Fallback route
+  app.get("/", (req, res) => {
+    res.json({ 
+      message: "OperonAI API Server", 
+      status: "running",
+      note: "Frontend build not available. Run 'npm run build' in client directory."
+    });
+  });
+}
 
 const startServer = async () => {
   await connectDatabase();

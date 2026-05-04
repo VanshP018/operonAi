@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     startCommand: npm start
-    buildCommand: npm install && cd client && npm install && npm run build
+    buildCommand: bash build.sh
     envVars:
       - key: MONGO_URI
         value: ${DATABASE_URL}
@@ -16,4 +16,6 @@ services:
         value: production
       - key: ALLOWED_ORIGINS
         value: https://${RENDER_SERVICE_NAME}.onrender.com
+
+
 
