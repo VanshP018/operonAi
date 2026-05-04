@@ -1,9 +1,10 @@
 services:
   - type: web
-    name: operonai-backend
+    name: operonai-app
     runtime: node
     plan: starter
     startCommand: npm start
+    buildCommand: npm install && cd client && npm install && npm run build
     envVars:
       - key: MONGO_URI
         value: ${DATABASE_URL}
@@ -14,16 +15,5 @@ services:
       - key: NODE_ENV
         value: production
       - key: ALLOWED_ORIGINS
-        value: https://${RENDER_SERVICE_NAME}.onrender.com,https://operonai-frontend.onrender.com
+        value: https://${RENDER_SERVICE_NAME}.onrender.com
 
-  - type: static_site
-    name: operonai-frontend
-    buildCommand: cd client && npm install && npm run build
-    staticPublishPath: client/dist
-    envVars:
-      - key: VITE_API_URL
-        value: https://${BACKEND_SERVICE_URL}
-      - key: VITE_API_KEY
-        value: key_abc
-      - key: VITE_COMPANY_ID
-        value: comp_123
