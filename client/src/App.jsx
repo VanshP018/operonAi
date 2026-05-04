@@ -5,8 +5,8 @@ import { AddFAQ } from "./components/AddFAQ";
 import { FAQList } from "./components/FAQList";
 import { TestPlayground } from "./components/TestPlayground";
 import { GoLiveToggle } from "./components/GoLiveToggle";
-
-const COMPANY_ID = "comp_onboarding";
+import { WebhookRegistration } from "./components/WebhookRegistration";
+import { COMPANY_ID, API_KEY, API_BASE_URL } from "./config.js";
 
 function App() {
   const [currentView, setCurrentView] = useState("home");
@@ -22,7 +22,7 @@ function App() {
   const loadFaqs = async () => {
     try {
       const response = await fetch(
-        `http://localhost:3000/faq?companyId=${COMPANY_ID}`,
+        `${API_BASE_URL}/faq?companyId=${COMPANY_ID}`,
         {
           headers: { "x-company-id": COMPANY_ID },
         },
@@ -50,7 +50,7 @@ function App() {
   const handleDeleteFaq = async (faqId) => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:3000/faq/${faqId}`, {
+      const response = await fetch(`${API_BASE_URL}/faq/${faqId}`, {
         method: "DELETE",
         headers: { "x-company-id": COMPANY_ID },
       });
@@ -188,6 +188,8 @@ function App() {
           <TestPlayground companyId={COMPANY_ID} />
 
           <GoLiveToggle isEnabled={isLive} onToggle={handleToggleLive} />
+
+          <WebhookRegistration companyId={COMPANY_ID} apiKey={API_KEY} />
 
           <section className="section section-footer" id="pricing">
             <h2>Next Steps</h2>

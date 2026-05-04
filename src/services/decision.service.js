@@ -1,11 +1,21 @@
 import { findDuplicatePayments } from "../utils/duplicateDetector.js";
 import { getCustomerPayments } from "./stripe.service.js";
 
-export const processDecision = async (user, classification) => {
+export const processDecision = async (user, classification, mode = 'live') => {
   const category = classification?.category;
 
   if (category !== "billing_duplicate") {
     return { action: "escalate" };
+  }
+
+  if (mode === 'dry_run') {
+    // Mock decision for dry run
+    return {
+      action: "refund",
+      paymentId: "pi_mock_123",
+      amount: 29.99,
+      paymentDate: new Date().toISOString().split('T')[0],
+    };
   }
 
   const customerId = user?.stripeCustomerId;

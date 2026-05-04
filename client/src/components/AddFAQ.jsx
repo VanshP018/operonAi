@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { API_BASE_URL } from "../config.js";
 
 export function AddFAQ({ companyId, onFaqAdded, loading }) {
   const [question, setQuestion] = useState("");
@@ -17,7 +18,7 @@ export function AddFAQ({ companyId, onFaqAdded, loading }) {
     }
 
     try {
-      const response = await fetch("http://localhost:3000/faq", {
+      const response = await fetch(`${API_BASE_URL}/faq`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

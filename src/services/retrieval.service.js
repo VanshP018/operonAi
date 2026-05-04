@@ -11,7 +11,7 @@ export const getEmbedding = async (text) => {
 
   try {
     const model = client.getGenerativeModel({
-      model: "text-embedding-004",
+      model: "gemini-embedding-001",
     });
 
     const response = await model.embedContent(text);

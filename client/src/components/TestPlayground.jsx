@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { API_BASE_URL } from "../config.js";
 
 export function TestPlayground({ companyId }) {
   const [testMessage, setTestMessage] = useState("");
@@ -12,7 +13,7 @@ export function TestPlayground({ companyId }) {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:3000/ticket", {
+      const response = await fetch(`${API_BASE_URL}/ticket`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

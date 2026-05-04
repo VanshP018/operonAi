@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: operonai-backend
+    runtime: node
+    plan: starter
+    startCommand: npm start
+    envVars:
+      - key: MONGO_URI
+        value: ${DATABASE_URL}
+      - key: STRIPE_SECRET_KEY
+        fromEnvVarName: STRIPE_SECRET_KEY
+      - key: GEMINI_API_KEY
+        fromEnvVarName: GEMINI_API_KEY
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://${RENDER_SERVICE_NAME}.onrender.com,https://operonai-frontend.onrender.com
+
+  - type: static_site
+    name: operonai-frontend
+    buildCommand: cd client && npm install && npm run build
+    staticPublishPath: client/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://${BACKEND_SERVICE_URL}
+      - key: VITE_API_KEY
+        value: key_abc
+      - key: VITE_COMPANY_ID
+        value: comp_123

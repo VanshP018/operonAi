@@ -73,3 +73,18 @@ export const removeFaq = (companyId, faqId) => {
   const [removed] = company.faqs.splice(index, 1);
   return removed;
 };
+
+export const setWebhookUrl = (companyId, webhookUrl) => {
+  const company = ensureCompany(companyId);
+  if (!company) {
+    return null;
+  }
+
+  company.webhookUrl = webhookUrl;
+  return company;
+};
+
+export const getWebhookUrl = (companyId) => {
+  const company = getCompanyById(companyId);
+  return company ? company.webhookUrl : null;
+};
